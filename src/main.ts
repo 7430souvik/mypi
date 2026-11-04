@@ -1,156 +1,113 @@
 import { config } from "dotenv";
-import { fileURLToPath } from "url";
+import { fileURLToPath } from "node:url";
+import Anthropic from "@anthropic-ai/sdk";
 import { parseArgs } from "node:util";
+import { getProvider } from "./providers/index.js";
+import type { AssistantMessage, Message } from "./types.ts";
+import { readTool } from "./tools/read.js"; 
+import { runAgent } from "./agent/loop.js"; 
+import { tools } from "./tools/index.js"  
 
-import type {
-    AssistantMessage,
-    Message,
-    Tool
-} from "./types.js";
-
-import { getProvider } from "./index.js";
-import { readTool } from "./tools/read.js";
-
+// load the .env next to the code, so mypi works from any folder
 config({
-    path: fileURLToPath(new URL("../.env", import.meta.url)),
-    quiet: true
+  path: fileURLToPath(new URL("../.env", import.meta.url)),
+  quiet: true,
 });
-
-const tools: Tool[] = [readTool];
-
-const toolMap = new Map(
-    tools.map(tool => [tool.name, tool])
-);
-
-const toolSpecs = tools.map(
-    ({ name, description, parameters }) => ({
-        name,
-        description,
-        parameters
-    })
-);
+// const tools = [readTool]
 
 const { values } = parseArgs({
-    options: {
-        prompt: {
-            type: "string",
-            short: "p"
-        },
-        model: {
-            type: "string"
-        }
-    }
+  options: {
+    prompt: { type: "string", short: "p" },
+    provider: { type: "string", default: "groq" },
+    model: { type: "string" },
+  },
 });
 
 if (!values.prompt) {
-    console.log("No prompt provided.");
-    process.exit(1);
+  console.error(
+    `no prompt sirr, mypi -p "prompt" --provider anthropic OR groq `,
+  );
+  process.exit(1);
 }
 
-const provider = getProvider("groq");
+const provider = getProvider(values.provider);
 const model = values.model ?? provider.defaultModel;
+const messages: Message[] = [{ role: "user", content: values.prompt }];
 
-const messages: Message[] = [
-    {
-        role: "user",
-        content: values.prompt
+await runAgent({
+  provider,
+  model,
+  tools,
+  messages,
+  onEvent(event) {
+    if (event.type === "text") process.stdout.write(event.delta);
+    else if (event.type == "tool_start") console.log(`\n ${event.call.name}`);
+    else if (event.type == "tool_end") {
+      const lines = event.result.split("\n").length;
+      console.log(`\n ${event.isError ? event.result : lines}`);
+    } else if (event.type === "turn_end") {
+      const { usage, stopReason } = event.message;
+      console.log(
+        `\n\n  ${provider.name} ... ${model} ... ${usage.input} ... ${usage.output} ... ${stopReason}`,
+      );
     }
-];
+  },
+});
 
-async function callModel(): Promise<AssistantMessage> {
-    for await (const event of provider.stream({
-        messages,
-        model,
-        tools: toolSpecs
-    })) {
-        if (event.type === "text_delta") {
-            process.stdout.write(event.delta);
-        }
+async function callModel1(): Promise<AssistantMessage> {
+  for await (const event of provider.stream({ messages, model, tools })) {
+    if (event.type === "text_delta") process.stdout.write(event.delta);
+    else {
+      const { usage, stopReason } = event.message;
+      console.log(
+        `\n\n  ${provider.name} ... ${model} ... ${usage.input} ... ${usage.output} ... ${stopReason}`,
+      );
 
-        if (event.type === "done") {
-            console.log(
-                `\n\n${provider.name} finished: ${event.message.stopReason}`
-            );
-
-            return event.message;
-        }
+      return event.message;
     }
-
-    throw new Error("Stream ended without a done event");
-}
-async function runAgent() {
-
-    let iterations = 0;
-    const MAX_ITERATIONS = 10;
-
-    while (iterations++ < MAX_ITERATIONS) {
-
-        const assistantMessage = await callModel();
-
-        messages.push(assistantMessage);
-
-        // Model has finished responding
-        if (assistantMessage.stopReason !== "toolUse") {
-            break;
-        }
-
-        // Execute requested tools
-        for (const block of assistantMessage.content) {
-
-            if (block.type !== "toolCall") continue;
-
-            console.log(
-                `\n-> ${block.name} (${JSON.stringify(block.arguments)})`
-            );
-
-            const tool = toolMap.get(block.name);
-
-            if (!tool) {
-                messages.push({
-                    role: "toolResult",
-                    toolCallId: block.id,
-                    toolName: block.name,
-                    content: [{
-                        type: "text",
-                        text: `Unknown tool: ${block.name}`
-                    }],
-                    isError: true
-                });
-
-                continue;
-            }
-
-            try {
-                const result = await tool.execute(block.arguments);
-
-                messages.push({
-                    role: "toolResult",
-                    toolCallId: block.id,
-                    toolName: block.name,
-                    content: result,
-                    isError: false
-                });
-
-            } catch (error) {
-                messages.push({
-                    role: "toolResult",
-                    toolCallId: block.id,
-                    toolName: block.name,
-                    content: [{
-                        type: "text",
-                        text: error instanceof Error
-                            ? error.message
-                            : "Tool execution failed"
-                    }],
-                    isError: true
-                });
-            }
-        }
-    }
-
-    if (iterations > MAX_ITERATIONS) {
-        console.log("\nMaximum tool iterations reached.");
-    }
+  }
+  throw new Error("stream ended without a done event");
 }
 
-await runAgent();
+// const first = await callModel();
+// messages.push(first);
+// console.log(`####### ${first.stopReason}`);
+
+// if (first.stopReason === "toolUse") {
+//   for (const block of first.content) {
+//     if (block.type !== "toolCall") continue;
+//     console.log(`-> ${block.name}(${JSON.stringify(block.arguments)})`);
+//     const result = await readTool.execute(block.arguments);
+//     messages.push({ role: "toolResult", toolCallId: block.id, toolName: block.name, content: result, isError: false });
+//   }
+//   // round 2: the model sees the tool result and answers
+//   messages.push(await callModel());
+// }
+
+// for await(const event of provider.stream({messages,model})){
+//     if(event.type==="text_delta") process.stdout.write(event.delta);
+//     else {
+//         const {usage, stopReason}= event.message;
+//         console.log(`\n\n  ${provider.name} ... ${model} ... ${usage.input} ... ${usage.output} ... ${stopReason}`)
+//     }
+// }
+
+// const client = new Anthropic();
+
+// const stream = client.messages.stream({
+//   max_tokens: 1024,
+//   messages: [{ content: values.prompt, role: "user" }],
+//   model: values.model
+// });
+
+// for await ( const event of stream){
+//     if(event.type==="content_block_delta" && event.delta.type==="text_delta"){
+//         process.stdout.write(event.delta.text);
+//     }
+// }
+
+// const final= await stream.finalMessage();
+// console.log(final);
+// console.log(final.usage.input_tokens)
+// console.log(final.usage.output_tokens)
+// console.log(final.stop_reason)

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Todo App</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="app-header">
+      <h1>My Tasks</h1>
+      <p class="subtitle" id="subtitle">You have no tasks</p>
+    </header>
+
+    <form class="todo-form" id="todoForm" autocomplete="off">
+      <input
+        type="text"
+        id="todoInput"
+        placeholder="What needs to be done?"
+        aria-label="Task description"
+        maxlength="200"
+      />
+      <button type="submit" class="add-btn">Add</button>
+    </form>
+
+    <ul class="todo-list" id="todoList"></ul>
+
+    <footer class="app-footer">
+      <div class="filters">
+        <button class="filter-btn active" data-filter="all">All</button>
+        <button class="filter-btn" data-filter="active">Active</button>
+        <button class="filter-btn" data
