@@ -238,23 +238,7 @@ More filesystem and developer tools are planned.
 - Add safeguards and approval mechanisms for destructive operations.
 - Treat shell execution as a privileged operation.
 
-## 🤝 Contributing
 
-Contributions, ideas, and suggestions are welcome!
-
-1. Fork the repository.
-2. Create a feature branch.
-3. Implement your changes.
-4. Test your implementation.
-5. Submit a pull request.
-
-## 👨‍💻 Author
-
-**Souvik Chatterjee**
-
-GitHub: [@7430souvik](https://github.com/7430souvik)
-
----
 
 ⭐ If you find this project interesting, consider giving it a star!
 
