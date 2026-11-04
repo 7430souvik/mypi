@@ -1,0 +1,27 @@
+{
+  "name": "mypi",
+  "version": "1.0.0",
+  "description": "",
+  "license": "ISC",
+  "author": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx src/main.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
+    "dotenv": "^18.0.5",
+    "groq-sdk": "^1.6.0",
+    "openai": "^7.27.0",
+    "tsx": "^4.23.15"
+  },
+  "bin": {
+    "mypi": "./bin/mypi.js"
+  }
+}
